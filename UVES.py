@@ -913,6 +913,17 @@ def plt_diff(fits_file1, fits_file2, tare=False, alpha=1.0):
     plt.show(block=False)
 
 def plt_diag_lines(master_folder, flux_cal=False):
+    '''Function to plot the diagnostic lines of the spectrum
+        for all the master FITS files in a folder.
+
+        Parameters
+        ----------
+        master_folder : str
+            Path to the folder containing the master FITS files.
+        flux_cal : bool, optional
+            If True, plot the flux-calibrated spectra. Default is False.
+    '''
+
     setups = {
             'DIC1+346' : (3050, 3860),
             'DIC1+580' : (4790, 6790),
