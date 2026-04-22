@@ -932,23 +932,21 @@ def plt_diag_lines(master_folder, flux_cal=False):
     # missing OH, C2, C3 lines?
     lines = {
             3230: 'Ti II',
-            3242: 'Ti II',
-            3302: 'Na I',
-            3384: 'Ti II',
-            3720: 'Fe I',
-            3874: 'CN',
-            3933: 'Ca II K',
-            3968: 'Ca II H',
-            4232: 'CH+',
-            4300: 'CH',
-            4963: 'DIB',
-            5890: 'DIB',
-            5895: 'Na I D1',
-            5896: 'Na I D2',
-            6196: 'DIB',
-            6614: 'DIB',
-            7664: 'KI',
-            7698: 'KI'
+            3243: 'Ti II',
+            3303.5: 'Na I',
+            3385: 'Ti II',
+            3721: 'Fe I',
+            3874: 'CN',#
+            3934.8: 'Ca II K',
+            3969.6: 'Ca II H',
+            4234: 'CH+',
+            4301.5: 'CH',
+            4964: 'DIB',
+            5894.6: 'Na I D',
+            6196: 'DIB',#
+            6614: 'DIB',#
+            7667: 'K I',
+            7701: 'K I'
             }
 
     master_and_lines = []
@@ -979,7 +977,8 @@ def plt_diag_lines(master_folder, flux_cal=False):
     for line in lines_f:
         for m, lines_i in master_and_lines:
             if line in lines_i:
-                mask = (m.wave > line-5) & (m.wave < line+5)
+                delta = [5 if line in [5894.6,3874] else 2][0]
+                mask = (m.wave > line-delta) & (m.wave < line+delta)
                 if flux_cal:
                     flux = m.flux_cal[mask]
                 else:
@@ -989,6 +988,10 @@ def plt_diag_lines(master_folder, flux_cal=False):
                 axs[i].set_xlabel('Wavelength (Å)')
                 axs[i].set_ylabel('Flux')
         i += 1
+
+    # remove empty subplots
+    for j in range(i, n_rows*n_cols):
+        fig.delaxes(axs[j])
 
     plt.tight_layout()
     plt.show(block=False)
