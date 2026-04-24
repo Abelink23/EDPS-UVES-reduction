@@ -570,7 +570,6 @@ class ob():
             np.savetxt(new_name, np.c_[self.wave,self.flux], fmt=['%.4f','%.6e'],
             header='wave      flux', comments='')
 
-
 def normalize_slice(w, f, w0, w1, wlim1=None, wlim2=None, lam1=None, iter=None):
 
     '''
@@ -795,7 +794,7 @@ def calculate_snr(flux):
 
     return int(snr0)
 
-def master_files(folder):
+def make_master(folder):
     ''' Function to create a master FITS and ASCII files from:
         - red_science_*.fits (contains the spectrum)
         - error_red_science_*.fits (contains the error of the spectrum)
@@ -862,7 +861,6 @@ def master_files(folder):
                                 np.c_[r.wave, r.flux, e_r.flux, fcal.flux, fcal_e.flux],
                                 fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
         header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
-
 
 
 def plt_all_spec(file_type, tare=False, alpha=1.0, diff=False):
@@ -936,15 +934,15 @@ def plt_diag_lines(master_folder, flux_cal=False):
             3303.5: 'Na I',
             3385: 'Ti II',
             3721: 'Fe I',
-            3874: 'CN',#
+            3874: 'CN',
             3934.8: 'Ca II K',
             3969.6: 'Ca II H',
             4234: 'CH+',
             4301.5: 'CH',
             4964: 'DIB',
             5894.6: 'Na I D',
-            6196: 'DIB',#
-            6614: 'DIB',#
+            6196: 'DIB',
+            6614: 'DIB',
             7667: 'K I',
             7701: 'K I'
             }
