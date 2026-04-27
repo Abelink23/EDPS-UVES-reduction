@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 from datetime import datetime
@@ -65,7 +64,8 @@ class ob():
         if tare:
             self.tare()
 
-        self.clean_negative_flux()
+        if self.flux is not None:
+            self.clean_negative_flux()
 
     def extract_from_pipeline(self):
         ''' Extract wavelength and flux of spectra from the pipeline output files.
@@ -73,6 +73,10 @@ class ob():
         '''
         sp = fits.open(self.file)
         self.header = sp[0].header
+        # in some old files there are three extensions, header, CCD-44 and CCD-20
+        # in these cases combine the main header with the one of the CCD-44 extension
+        if len(sp) == 3:
+            self.header.update(sp[1].header)
 
         if "ADP." in self.header['ARCFILE'].upper():
             self.wave = sp[1].data[0][0]
@@ -88,8 +92,12 @@ class ob():
         # Get Dichroic info
         self.dich = self.header['HIERARCH ESO TPL NAME'].split(' ')[0].upper()
 
-        # Get central wavelength, CCD, and slit width info
-        self.ccd = self.header['HIERARCH ESO PRO CATG'].split('_')[-1]
+        # Get CCD
+        if 'HIERARCH ESO PRO CATG' in self.header:
+            self.ccd = self.header['HIERARCH ESO PRO CATG'].split('_')[-1]
+        else:
+            self.ccd = self.header['HIERARCH ESO INS PATH'].strip()
+        # Get central wavelength and slit width info
         if self.ccd == 'REDL' or self.ccd == 'REDU' or self.ccd == 'RED':
             self.cwlen = int(self.header['HIERARCH ESO INS GRAT2 WLEN'])
             self.slit_width = self.header['HIERARCH ESO INS SLIT3 WID']
@@ -97,7 +105,11 @@ class ob():
             self.cwlen = int(self.header['HIERARCH ESO INS GRAT1 WLEN'])
             self.slit_width = self.header['HIERARCH ESO INS SLIT2 WID']
 
-        print(f'{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}"')
+        # print the summary in red/blue color depending on the CCD
+        if 'RED' in self.ccd:
+            print(f'\033[91m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
+        else:
+            print(f'\033[94m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
         sp.close()
 
     def extract_from_master(self):
@@ -364,6 +376,10 @@ class ob():
             Step in angstroms to select the regions for normalization.
             If None, it will be selected depending on the setup.
             Default is None.
+
+        append_master : bool, optional
+            If True, the normalization will be added as an extra extension to the master
+            reduced FITS file after flux_cal_error. Default is False.
         '''
 
         lam0 = np.min(self.wave)
@@ -436,7 +452,6 @@ class ob():
                     return
             hdul.writeto(filename, overwrite=True)
             print(f"Normalized spectrum added as a new extension to {filename.split('/')[-1]}.")
-
 
     def tare(self):
         ''' Divide the flux by its median value
@@ -779,8 +794,34 @@ def normalize_slice(w, f, w0, w1, wlim1=None, wlim2=None, lam1=None, iter=None):
 
     return ws00, fs00, fn, yn, fkt, snr, wlim1, wlim2, lam1
 
-def calculate_snr(flux):
+def calculate_snr(flux, wave=None, lwl=None, rwl=None):
+    ''' Function to calculate the SNR of a spectrum using an iterative sigma clipping method.
+
+    Parameters
+    ----------
+    flux : array-like
+        Flux array of the spectrum.
+    wave : array-like, optional
+        Wavelength array of the spectrum. Default is None.
+    lwl : float, optional
+        Left wavelength limit to consider for the SNR calculation. Default is None.
+    rwl : float, optional
+        Right wavelength limit to consider for the SNR calculation. Default is None.
+
+    Returns
+    -------
+    int
+        SNR of the spectrum.
+    '''
+
     # Calculate the SNR of the spectrum with an iterative sigma clipping method
+    if wave is not None and lwl is not None and rwl is not None:
+        flux = flux[(wave >= lwl) & (wave <= rwl)]
+
+    if len(flux) == 0:
+        print("Warning: no flux values in the given wavelength range for SNR calculation.")
+        return np.nan
+
     me0 = np.nanmean(flux)
     st0 = np.nanstd(flux)
     snr0 = me0 / st0
@@ -862,7 +903,6 @@ def make_master(folder):
                                 fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
         header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
 
-
 def plt_all_spec(file_type, tare=False, alpha=1.0, diff=False):
     folder = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
     all_files = []
@@ -929,22 +969,25 @@ def plt_diag_lines(master_folder, flux_cal=False):
     }
     # missing OH, C2, C3 lines?
     lines = {
-            3230: 'Ti II',
-            3243: 'Ti II',
+            3230: 'Ti II', # 3230.13
+            3243: 'Ti II', # 3242.93
             3303.5: 'Na I',
-            3385: 'Ti II',
-            3721: 'Fe I',
-            3874: 'CN',
-            3934.8: 'Ca II K',
-            3969.6: 'Ca II H',
-            4234: 'CH+',
-            4301.5: 'CH',
+            3385: 'Ti II', # 3384.73
+            3721: 'Fe I', # 3720.94
+            3874: 'CN', # 3874.61   | B-X (0,0) band, R(0) line
+            3934.8: 'Ca II K', # 3934.78
+            3969.6: 'Ca II H', # 3969.59
+            #4052: 'C3', # 4051.60  | Swings band, R(0) line
+            4234: 'CH+', # 4232.55  | A-X (0,0) band, R(0) line"
+            4301.5: 'CH', # 4300.31 | A-X (0,0) band, R2(1) line
+            #4428: 'DIB', # 4428.1  | DIB, very broad
             4964: 'DIB',
-            5894.6: 'Na I D',
+            # 5780: 'DIB', # 5780.5  | DIB, sharp
+            5894.6: 'Na I D', # 5891.58 + 5897.56
             6196: 'DIB',
             6614: 'DIB',
-            7667: 'K I',
-            7701: 'K I'
+            7667: 'K I', # 7667.01
+            7701: 'K I'  # 7701.08
             }
 
     master_and_lines = []
@@ -1001,11 +1044,14 @@ def info(folder='/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object/'):
     for root, dirs, files in os.walk(folder):
         for file in files:
             filename = file.split('/')[-1]
-            if filename in uves_files or \
+            if filename in uves_files or filename.startswith('UVES.') or \
                 (filename.startswith('MASTER_') and filename.endswith('.fits')):
                 path = os.path.join(root, file)
-                print(f'\033[94m {path.split("/")[-1]} \033[0m')
+                print(f"{path.split('/')[-1]}")
                 if 'MASTER_' in filename:
                     spec = ob(path, orig='reduced')
                 else:
-                    spec = ob(path)
+                    try:
+                        spec = ob(path)
+                    except Exception as e:
+                        print(f"Error occurred while processing {path}: {e}")
