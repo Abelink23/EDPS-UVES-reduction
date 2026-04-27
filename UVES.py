@@ -67,7 +67,7 @@ class ob():
         if self.flux is not None:
             self.clean_negative_flux()
 
-    def extract_from_pipeline(self):
+    def extract_from_pipeline(self, silent=False):
         ''' Extract wavelength and flux of spectra from the pipeline output files.
             #! CSYER1 = 0,000115 -> is this the offset I have to apply to match with the EDPS plot?
         '''
@@ -105,14 +105,16 @@ class ob():
             self.cwlen = int(self.header['HIERARCH ESO INS GRAT1 WLEN'])
             self.slit_width = self.header['HIERARCH ESO INS SLIT2 WID']
 
-        # print the summary in red/blue color depending on the CCD
-        if 'RED' in self.ccd:
-            print(f'\033[91m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
-        else:
-            print(f'\033[94m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
+        if not silent:
+            # print the summary in red/blue color depending on the CCD
+            if 'RED' in self.ccd:
+                print(f'\033[91m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} |   {self.cwlen} | {self.slit_width}\033[0m')
+            else:
+                print(f'\033[94m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
+
         sp.close()
 
-    def extract_from_master(self):
+    def extract_from_master(self, silent=False):
         ''' Extract wavelength and flux of spectra from the master reduced files.
         '''
         sp = fits.open(self.file)
@@ -150,7 +152,8 @@ class ob():
         self.dlam = np.median(np.diff(self.wave))
 
         # Print summary of the spectrum
-        print(f'{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}"')
+        if not silent:
+            print(f'{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}"')
 
     def extract_from_ascii(self):
         ''' Extract wavelength and flux from an ascii file.
@@ -835,7 +838,7 @@ def calculate_snr(flux, wave=None, lwl=None, rwl=None):
 
     return int(snr0)
 
-def make_master(folder):
+def make_master(path):
     ''' Function to create a master FITS and ASCII files from:
         - red_science_*.fits (contains the spectrum)
         - error_red_science_*.fits (contains the error of the spectrum)
@@ -844,11 +847,16 @@ def make_master(folder):
         - parameters.rc file (contains the non-default parameters used in the reduction)
 
     Note: the header of the FITS is taken from fluxcal_science file.
+
+    Parameters
+    ----------
+    path : str
+        Path to the folder containing the reduced data.
     '''
 
     # find each file in the folder
     ccd = None
-    for root, dirs, files in os.walk(folder):
+    for root, dirs, files in os.walk(path):
         if 'red_science_blue.fits' in files:
             root_dir = root
             ccd = 'BLUE'
@@ -895,18 +903,36 @@ def make_master(folder):
 
         hdul = fits.HDUList([hdu, hdu_wave, hdu_flux, hdu_error, hdu_fluxcal, hdu_fluxcal_error])
         arcfile = r.header['ARCFILE'].replace('.fits', '')
-        hdul.writeto(os.path.join(folder, f'MASTER_{filename_suffix.upper()}_{arcfile}.fits'), overwrite=True)
+        hdul.writeto(os.path.join(path, f'MASTER_{filename_suffix.upper()}_{arcfile}.fits'), overwrite=True)
 
         # Also create an ASCII file
-        np.savetxt(os.path.join(folder, f'MASTER_{filename_suffix.upper()}_{arcfile}.ascii'),
+        np.savetxt(os.path.join(path, f'MASTER_{filename_suffix.upper()}_{arcfile}.ascii'),
                                 np.c_[r.wave, r.flux, e_r.flux, fcal.flux, fcal_e.flux],
                                 fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
         header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
 
+def make_masters(path):
+    ''' Function to use the make_master function to create master FITS files
+    for all the subfolders in the input folder.
+
+    Parameters
+    ----------
+    path : str
+        Path to the folder containing the subfolders with reduced data.
+    '''
+
+    if not path.endswith('/'):
+        path += '/'
+
+    # make list with subfolders in the input folder
+    for folder in os.listdir(path):
+        if os.path.isdir(os.path.join(path, folder)):
+            make_master(os.path.join(path, folder))
+
 def plt_all_spec(file_type, tare=False, alpha=1.0, diff=False):
-    folder = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
+    path = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
     all_files = []
-    for root, dirs, files in os.walk(folder):
+    for root, dirs, files in os.walk(path):
         for file in files:
             if file == file_type:
                 path = os.path.join(root, file)
