@@ -16,12 +16,22 @@ A class-based approach to spectral reduction and visualization.
     - Spike removal using Z-score or Kernel-based sigma clipping.
     - Flux normalization with iterative polynomial fitting and strong-line masking.
     - Negative flux cleaning and median "taring".
+  - **Exporting**:
+    - `export_fits`: Saves the current status of the spectrum to a new FITS file.
+    - `export_ascii`: Exports the wavelength and flux data into an ASCII file.
 - **Visualization**:
   - `plot`: Standard spectrum plotting with support for flux, calibrated flux, or normalized flux.
   - `plot_orders`: Visualizes 2D resampled echelle orders.
-  - `plt_diag_lines`: Multi-panel diagnostic plots for specific interstellar/stellar lines.
+
+- **Standalone Visualization & Utilities**:
+  - `plt_all_spec`: Recursively finds and plots all spectra matching a specific file type within a directory.
+  - `plt_diff`: Interpolates and plots the flux ratio between two given FITS spectra.
+  - `plt_diag_lines`: Multi-panel diagnostic plots for specific interstellar/stellar lines from master files.
+  - `info`: Scans a directory and prints summary information for all recognized UVES FITS files.
+
 - **Master File Creation**:
-  - `master_files`: Consolidates individual pipeline products (science, error, flux-calibrated) into a single multi-extension FITS "Master" file and a corresponding ASCII table.
+  - `make_master`: Consolidates individual pipeline products (science, error, flux-calibrated) into a single multi-extension FITS "Master" file and a corresponding ASCII table.
+  - `make_masters`: Creates master files for each subdirectory in a given folder.
 
 ### 2. `handle_data.py`
 Focuses on file system organization and fixing FITS headers for compatibility.
