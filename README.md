@@ -4,13 +4,7 @@ This repository contains Python tools for organizing, processing, and analyzing 
 
 ## Modules
 
-### 1. `handle_data.py`
-Focuses on file system organization and fixing FITS headers for compatibility.
-- **`organize_EDPSdata`**: Matches pipeline outputs with final products using `ARCFILE` and `ESO PRO CATG` keywords.
-- **`organize_fits_in_EDPSfolder_by_object`**: Scans directories and sorts FITS files into subfolders named after the `OBJECT` header keyword, while renaming files based on pipeline and archive identifiers.
-- **`fake_master_response` / `fake_date_flat`**: Utility functions to manually correct or "spoof" header metadata (like dates or category tags) to ensure downstream pipeline compatibility.
-
-### 2. `UVES.py`
+### 1. `UVES.py`
 A class-based approach to spectral reduction and visualization.
 - **`ob` Class**: The core object for handling UVES spectra.
   - **Extraction**: Supports standard pipeline outputs, master reduced files, and ASCII formats.
@@ -28,6 +22,12 @@ A class-based approach to spectral reduction and visualization.
   - `plt_diag_lines`: Multi-panel diagnostic plots for specific interstellar/stellar lines.
 - **Master File Creation**:
   - `master_files`: Consolidates individual pipeline products (science, error, flux-calibrated) into a single multi-extension FITS "Master" file and a corresponding ASCII table.
+
+### 2. `handle_data.py`
+Focuses on file system organization and fixing FITS headers for compatibility.
+- **`organize_EDPSdata`**: Matches pipeline outputs with final products using `ARCFILE` and `ESO PRO CATG` keywords.
+- **`organize_fits_in_EDPSfolder_by_object`**: Scans directories and sorts FITS files into subfolders named after the `OBJECT` header keyword, while renaming files based on pipeline and archive identifiers.
+- **`fake_master_response` / `fake_date_flat`**: Utility functions to manually correct or "spoof" header metadata (like dates or category tags) to ensure downstream pipeline compatibility.
 
 ## Requirements
 - `numpy`
