@@ -10,7 +10,7 @@ from scipy.signal import convolve
 
 class ob():
     def __init__(self, file, orig='pipeline', bar_corr=False, to_vac=False,
-                cut_edges=False, clean=False, tare=False):
+                cut_edges=False, clean=False, tare=False, silent=False):
         '''
         Function to extract the wavelength and flux from a UVES spectrum FITS file.
         It creates an object and optionally applies:
@@ -35,9 +35,9 @@ class ob():
 
         if orig == 'reduced' or orig == 'master' or \
             file.split('/')[-1].upper().startswith('MASTER_'):
-            self.extract_from_master()
+            self.extract_from_master(silent=silent)
         elif orig == 'pipeline':
-            self.extract_from_pipeline()
+            self.extract_from_pipeline(silent=silent)
         elif orig == 'ascii':
             self.extract_from_ascii()
         else:
@@ -46,19 +46,19 @@ class ob():
 
         self.bar_corr_done = False
         if bar_corr:
-            self.barycentric_correction()
+            self.barycentric_correction(silent=silent)
 
         self.air_to_vac_done = False
         if to_vac in ['Morton', 'Griesen', 'IAU']:
-            self.air_to_vacuum(method=to_vac)
+            self.air_to_vacuum(method=to_vac, silent=silent)
 
         self.cut_edges_done = False
         if cut_edges:
-            self.cut_edges()
+            self.cut_edges(silent=silent)
 
         self.clean_spikes_done = False
         if clean:
-            self.clean_spikes(method=clean)
+            self.clean_spikes(method=clean, silent=silent)
 
         self.tare_done = False
         if tare:
@@ -177,22 +177,25 @@ class ob():
             print(f"\033[93mWarning: {np.sum(self.flux < 0)} negative flux values found. They will be set to zero.\033[0m")
         self.flux[self.flux < 0] = 0.0
 
-    def barycentric_correction(self):
+    def barycentric_correction(self, silent=False):
         ''' Correct from barycentric velocity
         '''
         if 'BARYCORR' in self.header:
             vbar = self.header['BARYCORR']
             self.wave = self.wave*(1 + 1000*vbar/c.value)
             self.bar_corr_done = True
-            print(f"Barycentric correction applied: velocity = {vbar:.2f} m/s.")
+            if not silent:
+                print(f"Barycentric correction applied: velocity = {vbar:.2f} m/s.")
         else:
-            print("Warning: BARYCORR keyword not found in header. No correction applied.")
+            if not silent:
+                print("Warning: BARYCORR keyword not found in header. No correction applied.")
 
-    def air_to_vacuum(self, method='Morton'):
+    def air_to_vacuum(self, method='Morton', silent=False):
         ''' Air to vacuum correction applied to the wavelength using different formulas.
         '''
         if self.air_to_vac_done in ['Morton', 'Griesen', 'IAU']:
-            print(f"Air to vacuum conversion already applied. No correction done.")
+            if not silent:
+                print(f"Air to vacuum conversion already applied. No correction done.")
             return
 
         # Use Morton (1991, ApJS, 77, 119) - IAU standard
@@ -209,9 +212,10 @@ class ob():
             n += 1.000064328
             self.wave = self.wave * n
         self.air_to_vac_done = method
-        print(f"Air to vacuum conversion applied using {method} method.")
+        if not silent:
+            print(f"Air to vacuum conversion applied using {method} method.")
 
-    def cut_edges(self):
+    def cut_edges(self, silent=False):
         ''' Make cuts at the edges of the spectra to remove unwanted regions
         '''
         # Make cuts at the edges of the spectra to remove unwanted regions
@@ -234,7 +238,9 @@ class ob():
             self.flux = self.flux[(self.wave > 8674) & (self.wave < 10411)]
             self.wave = self.wave[(self.wave > 8674) & (self.wave < 10411)]
         self.cut_edges_done = True
-        print("Edges cut applied.")
+
+        if not silent:
+            print("Edges cut applied.")
 
     def clean_spikes(self, method, wl_split=100, dmin=0.05, protect_em_lines=False,
                     zs_cut=5, ker_sig=2, ker_iter=3, sig_g=None):
@@ -881,11 +887,11 @@ def make_master(path):
         r = ob(os.path.join(root_dir, f'red_science_{arm}.fits'),
                 orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True)
         e_r = ob(os.path.join(root_dir, f'error_red_science_{arm}.fits'),
-                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True)
+                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True, silent=True)
         fcal = ob(os.path.join(root_dir, f'fluxcal_science_{arm}.fits'),
-                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True)
+                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True, silent=True)
         fcal_e = ob(os.path.join(root_dir, f'fluxcal_error_science_{arm}.fits'),
-                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True)
+                orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True, silent=True)
         parts.append((arm, ext_suffix, r, e_r, fcal, fcal_e))
 
     for filename_suffix, ext_suffix, r, e_r, fcal, fcal_e in parts:
