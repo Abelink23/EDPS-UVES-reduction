@@ -104,7 +104,6 @@ class ob():
         elif self.ccd == 'BLUE' or self.ccd == 'BLU':
             self.cwlen = int(self.header['HIERARCH ESO INS GRAT1 WLEN'])
             self.slit_width = self.header['HIERARCH ESO INS SLIT2 WID']
-
         if not silent:
             # print the summary in red/blue color depending on the CCD
             if 'RED' in self.ccd:
@@ -499,21 +498,21 @@ class ob():
 
         if y == 'flux':
             flux = self.flux
-        elif y == 'norm_flux':
+        elif y in ['norm_flux', 'norm']:
             flux = self.norm_flux
-        elif y == 'flux_cal':
+        elif y in ['flux_cal', 'fluxcal']:
             flux = self.flux_cal
 
         plt.plot(self.wave, flux + delta_y, alpha=alpha, lw=0.7,
                 label=label or self.file.split('/')[-1])
         plt.xlabel('Wavelength (Angstrom)')
-        if 'fluxcal_' in self.file.lower() or y == 'flux_cal':
+        if 'fluxcal_' in self.file.lower() or y in ['flux_cal', 'fluxcal']:
             plt.ylabel('Flux (erg/s/cm**2)')
         elif 'spectrum_' in self.file.lower() or y == 'flux':
             plt.ylabel('Flux (ADU)')
         elif 'error_red' in self.file.lower():
             plt.ylabel('Flux error (ADU)')
-        elif y == 'norm_flux':
+        elif y in ['norm_flux', 'norm']:
             plt.ylabel('Normalized flux')
         else:
             plt.ylabel('Flux')
