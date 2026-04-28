@@ -107,7 +107,7 @@ class ob():
         if not silent:
             # print the summary in red/blue color depending on the CCD
             if 'RED' in self.ccd:
-                print(f'\033[91m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} |   {self.cwlen} | {self.slit_width}\033[0m')
+                print(f'\033[91m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
             else:
                 print(f'\033[94m{self.header["ARCFILE"].replace(".fits","")} | {self.ccd} | {self.dich} | {self.cwlen} | {self.slit_width}\033[0m')
 
@@ -242,7 +242,7 @@ class ob():
             print("Edges cut applied.")
 
     def clean_spikes(self, method, wl_split=100, dmin=0.05, protect_em_lines=False,
-                    zs_cut=5, ker_sig=2, ker_iter=3, sig_g=None):
+                    zs_cut=5, ker_sig=2, ker_iter=3, ker_sig_g=None):
         '''
         Function to remove spikes from the spectra by different approaches.
 
@@ -334,6 +334,7 @@ class ob():
             print(f"Method {method} not recognized. No cleaning applied.")
             return
 
+        # Interpolate over the NaNs to keep the same number of points in the wavelength array.
         nans = np.isnan(self.flux_clean)
         x = lambda z: z.nonzero()[0]
         self.flux_clean[nans] = np.interp(x(nans), x(~nans), self.flux_clean[~nans])
