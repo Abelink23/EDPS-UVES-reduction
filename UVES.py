@@ -99,11 +99,11 @@ class ob():
             self.ccd = self.header['HIERARCH ESO INS PATH'].strip()
         # Get central wavelength and slit width info
         if self.ccd == 'REDL' or self.ccd == 'REDU' or self.ccd == 'RED':
-            self.cwlen = int(self.header['HIERARCH ESO INS GRAT2 WLEN'].strip())
-            self.slit_width = self.header['HIERARCH ESO INS SLIT3 WID'].strip()
+            self.cwlen = int(self.header['HIERARCH ESO INS GRAT2 WLEN'])
+            self.slit_width = self.header['HIERARCH ESO INS SLIT3 WID']
         elif self.ccd == 'BLUE' or self.ccd == 'BLU':
-            self.cwlen = int(self.header['HIERARCH ESO INS GRAT1 WLEN'].strip())
-            self.slit_width = self.header['HIERARCH ESO INS SLIT2 WID'].strip()
+            self.cwlen = int(self.header['HIERARCH ESO INS GRAT1 WLEN'])
+            self.slit_width = self.header['HIERARCH ESO INS SLIT2 WID']
 
         if not silent:
             # print the summary in red/blue color depending on the CCD
