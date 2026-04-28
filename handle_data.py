@@ -49,7 +49,6 @@ def split_red_blue_data(root_dir):
 
             print(f"Moved: {file} -> {ccd_type}/")
 
-
 def organize_EDPSdata(destination_folder):
     '''
     Organize FITS files from the EDPS pipeline by matching them with the corresponding
