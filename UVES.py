@@ -952,7 +952,8 @@ def plt_all_spec(file_type, tare=False, alpha=1.0, diff=False):
         plt.figure(figsize=(12, 6))
         plt_diff(all_files[0], all_files[1], tare=tare, alpha=alpha)
 
-    plt.legend()
+    if len(all_files) != 0:
+        plt.legend()
 
 def plt_diff(fits_file1, fits_file2, tare=False, alpha=1.0):
     spec1 = ob(fits_file1, orig='pipeline', bar_corr=True, tare=tare)
