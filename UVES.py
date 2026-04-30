@@ -1070,17 +1070,17 @@ def plt_diag_lines(master_folder, flux_cal=False):
     plt.tight_layout()
     plt.show(block=False)
 
-def info(folder='/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object/'):
+def info(folder='~/Documents/pipelines/EDPS_data/UVES/object/'):
     '''Function to print the information of the files in a folder.
     '''
     uves_files = ['red_science_blue.fits', 'red_science_redl.fits', 'red_science_redu.fits']
-    for root, dirs, files in os.walk(folder):
+    for root, dirs, files in os.walk(os.path.expanduser(folder)):
         for file in files:
             filename = file.split('/')[-1]
             if filename in uves_files or filename.startswith('UVES.') or \
                 (filename.startswith('MASTER_') and filename.endswith('.fits')):
                 path = os.path.join(root, file)
-                print(f"{path.split('/')[-1]}")
+                print('/'.join(path.split('/')[-2:]))
                 if 'MASTER_' in filename:
                     spec = ob(path, orig='reduced')
                 else:
