@@ -30,7 +30,7 @@ def split_red_blue_data(root_dir):
                 if 'HIERARCH ESO PRO CATG' in header:
                     ccd = header['HIERARCH ESO PRO CATG'].split('_')[-1]
                 else:
-                    ccd = header['HIERARCH ESO INS PATH'].strip()                
+                    ccd = header['HIERARCH ESO INS PATH'].strip()
                 if 'RED' in ccd:
                     ccd_type = 'RED'
                 elif 'BLUE' in ccd or 'BLU' in ccd:
