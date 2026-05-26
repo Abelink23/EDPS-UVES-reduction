@@ -976,7 +976,7 @@ def make_stacked_spectrum(folder, file_type, orig='master', tail_name='stacked')
     None
     '''
 
-    spectra = []
+    spectra = []; cwlen = None
     for root, dirs, files in os.walk(folder):
         for file in files:
             if file.startswith(file_type) and file.endswith('.fits') and not 'stacked' in file.lower():
@@ -989,28 +989,12 @@ def make_stacked_spectrum(folder, file_type, orig='master', tail_name='stacked')
         print(f"No FITS files of type '{file_type}' found in the folder.")
         return
 
-    # Print the largest difference in the wavelength arrays of the spectra comparing the first value.
-    wave_diffs = [abs(spec.wave[0] - spectra[0].wave[0]) for spec in spectra]
-    max_diff = max(wave_diffs)
-    print(f"\33[1mLargest difference in the wavelength arrays of the spectra: {max_diff:.5f} Å\033[0m")
-    if max_diff > 0.001:
-        print(f"\33[93mWARNING: LARGE DIFFERENCE IN WAVELENGTH ARRAYS, THE SPECTRA MAY NOT BE PROPERLY ALIGNED\033[0m")
-
-    # Wavelength arrays are averaged
-    waves = np.array([spec.wave for spec in spectra])
-    wave = np.mean(waves, axis=0)
-    # Uncalibrated fluxes and errors are stacked.
-    fluxes = np.array([spec.flux for spec in spectra])
-    stacked_flux = np.nanmean(fluxes, axis=0)
-    fluxes_error = np.array([spec.flux_error for spec in spectra])
-    stacked_flux_error = np.sqrt(np.nansum(fluxes_error**2, axis=0)) / len(spectra)
-    # Flux-calibrated fluxes and errors are also stacked.
-    fluxes_cal = np.array([spec.flux_cal for spec in spectra])
-    stacked_flux_cal = np.nanmean(fluxes_cal, axis=0)
-    fluxes_cal_error = np.array([spec.flux_cal_error for spec in spectra])
-    stacked_flux_cal_error = np.sqrt(np.nansum(fluxes_cal_error**2, axis=0)) / len(spectra)
-
-    new_name = f'{file_type}_{tail_name}.fits'
+    else:
+        # Check that all spectra have the same central wavelength (cwlen) and print a warning if not.
+        cwlen_values = set([spec.cwlen for spec in spectra])
+        if len(set(cwlen_values)) > 1:
+            cwl = input(f"Central wavelengths are {cwlen_values}, please choose one: ")
+            spectra = [spec for spec in spectra if str(spec.cwlen) == cwl]
 
     # Create a new header only with the keywords that are common to all the spectra.
     common_keys = set(spectra[0].header.keys())
@@ -1021,23 +1005,68 @@ def make_stacked_spectrum(folder, file_type, orig='master', tail_name='stacked')
         if 'COMMENT' in key or key not in common_keys:
             del header[key]
 
-    # Create a new FITS file with the stacked spectrum, using the header of the first spectrum
+    if len(spectra) > 1:
+        # Print the largest difference in the wavelength arrays of the spectra comparing the first value.
+        wave_diffs = [abs(spec.wave[0] - spectra[0].wave[0]) for spec in spectra]
+        max_diff = max(wave_diffs)
+        print(f"\33[1mLargest difference in the wavelength arrays of the spectra: {max_diff:.5f} Å\033[0m")
+        if max_diff > 0.001:
+            print(f"\33[93mWARNING: LARGE DIFFERENCE IN WAVELENGTH ARRAYS, THE SPECTRA MAY NOT BE PROPERLY ALIGNED\033[0m")
+
+        # Wavelength arrays are averaged
+        waves = np.array([spec.wave for spec in spectra])
+        wave = np.mean(waves, axis=0)
+        # Uncalibrated fluxes and errors are stacked.
+        fluxes = np.array([spec.flux for spec in spectra])
+        stacked_flux = np.nanmean(fluxes, axis=0)
+        fluxes_error = np.array([spec.flux_error for spec in spectra])
+        stacked_flux_error = np.sqrt(np.nansum(fluxes_error**2, axis=0)) / len(spectra)
+        # Flux-calibrated fluxes and errors are also stacked.
+        fluxes_cal = np.array([spec.flux_cal for spec in spectra])
+        stacked_flux_cal = np.nanmean(fluxes_cal, axis=0)
+        fluxes_cal_error = np.array([spec.flux_cal_error for spec in spectra])
+        stacked_flux_cal_error = np.sqrt(np.nansum(fluxes_cal_error**2, axis=0)) / len(spectra)
+
+        new_name = f'UVES_{file_type.replace("_UVES", "")}_{spectra[0].cwlen}_{tail_name}.fits'
+
+        # Prepare the arrays of the new FITS file
+        hdu_wave = fits.ImageHDU(data=wave, name='WAVE')
+        hdu_flux = fits.ImageHDU(data=stacked_flux, name='FLUX')
+        hdu_error = fits.ImageHDU(data=stacked_flux_error, name='ERROR')
+        hdu_fluxcal = fits.ImageHDU(data=stacked_flux_cal, name='FLUXCAL')
+        hdu_fluxcal_error = fits.ImageHDU(data=stacked_flux_cal_error, name='FLUXCAL_ERROR')
+
+        # Create an ASCII file with the stacked spectrum
+        np.savetxt(os.path.join(folder, new_name.replace('.fits', '.ascii')),
+            np.c_[wave, stacked_flux, stacked_flux_error, stacked_flux_cal, stacked_flux_cal_error],
+            fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
+            header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
+
+        msg = f"Stacked spectrum saved as {new_name}/ascii."
+
+    if len(spectra) == 1:
+        new_name = f'UVES_{file_type.replace("_UVES", "")}_{spectra[0].cwlen}.fits'
+
+        # Prepare the arrays of the new FITS file
+        hdu_wave = fits.ImageHDU(data=spectra[0].wave, name='WAVE')
+        hdu_flux = fits.ImageHDU(data=spectra[0].flux, name='FLUX')
+        hdu_error = fits.ImageHDU(data=spectra[0].flux_error, name='ERROR')
+        hdu_fluxcal = fits.ImageHDU(data=spectra[0].flux_cal, name='FLUXCAL')
+        hdu_fluxcal_error = fits.ImageHDU(data=spectra[0].flux_cal_error, name='FLUXCAL_ERROR')
+
+        # Create an ASCII file updating the name
+        np.savetxt(os.path.join(folder, new_name.replace('.fits', '.ascii')),
+            np.c_[spectra[0].wave, spectra[0].flux, spectra[0].flux_error, spectra[0].flux_cal, spectra[0].flux_cal_error],
+            fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
+            header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
+
+        msg = f"Only one spectrum found. Spectrum saved as {new_name}/ascii."
+
     hdu = fits.PrimaryHDU(header=header)
-    hdu_wave = fits.ImageHDU(data=wave, name='WAVE')
-    hdu_flux = fits.ImageHDU(data=stacked_flux, name='FLUX')
-    hdu_error = fits.ImageHDU(data=stacked_flux_error, name='ERROR')
-    hdu_fluxcal = fits.ImageHDU(data=stacked_flux_cal, name='FLUXCAL')
-    hdu_fluxcal_error = fits.ImageHDU(data=stacked_flux_cal_error, name='FLUXCAL_ERROR')
     hdul = fits.HDUList([hdu, hdu_wave, hdu_flux, hdu_error, hdu_fluxcal, hdu_fluxcal_error])
     hdul.writeto(os.path.join(folder, new_name), overwrite=True)
 
-    # Create an ASCII file with the stacked spectrum
-    np.savetxt(os.path.join(folder, new_name.replace('.fits', '.ascii')),
-                                np.c_[wave, stacked_flux, stacked_flux_error, stacked_flux_cal, stacked_flux_cal_error],
-                                fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
-        header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
-
-    print(f"Stacked spectrum saved as {new_name}/ascii.")
+    print(msg)
 
 
 def recursive_clean_spikes(folder, filename, zs_cut=6, dmin=300, do=1):
