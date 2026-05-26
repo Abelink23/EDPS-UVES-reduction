@@ -14,7 +14,7 @@ class ob():
         '''
         Function to extract the wavelength and flux from a UVES spectrum FITS file.
         It creates an object and optionally applies:
-            - Barycentric correction
+            - Barycentric correction.
             - Air to vacuum conversion (Morton, Griesen, or IAU methods)
             - Cutting of the edges of the spectrum
             - Cleaning of spikes in the spectrum by different approaches.
@@ -27,10 +27,25 @@ class ob():
                 The path to the file to be extracted.
             orig : str, optional
                 The origin of the file to be extracted. It can be:
-                - 'pipeline' for files from the pipeline,
+                - 'pipeline' for files from the pipeline (default),
                 - 'reduced' for master reduced files,
                 - 'ascii' for ascii files.
+            bar_corr : bool, optional
+                If True, the barycentric correction will be applied to the spectrum. Default is False.
+            to_vac : bool or str, optional
+                If True, the air to vacuum conversion will be applied.
+                Options are: 'Morton', 'Griesen', or 'IAU'. Default is False.
+            cut_edges : bool, optional
+                If True, the unwanted edges of the spectrum will be cut. Default is False.
+            clean : bool or str, optional
+                If True, the spikes in the spectrum will be cleaned.
+                Options are: 'zscore' or 'kernel'. Default is False.
+            tare : bool, optional
+                If True, the flux will be divided by its median value. Default is False.
+            silent : bool, optional
+                If True, no output will be printed. Default is False.
         '''
+
         self.file = file
 
         if orig == 'reduced' or orig == 'master' or \
@@ -557,7 +572,7 @@ class ob():
         if tail and not tail.startswith('_'):
             tail = '_' + tail
 
-        filename = self.file.replace('.fits', tail + '.fits')
+        filename = self.file.replace('.fits', f'{tail}.fits')
         hdu = fits.PrimaryHDU(data=self.flux, header=self.header)
         if os.path.exists(filename):
             overwrite = input(f"File {filename} already exists. Do you want to overwrite it? (y/n) ")
@@ -900,7 +915,14 @@ def make_master(path):
         for key, value in parameters_dict.items():
             fcal.header[key] = value
 
+        # remove all COMMENT in the header
+        for key in list(fcal.header.keys()):
+            if key.startswith('COMMENT'):
+                del fcal.header[key]
+
+        # Header is taken from the fluxcal_science file, as it contains more information.
         hdu = fits.PrimaryHDU(header=fcal.header)
+
         hdu_wave = fits.ImageHDU(data=r.wave, name=f'WAVE{ext_suffix}')
         hdu_flux = fits.ImageHDU(data=r.flux, name=f'FLUX{ext_suffix}')
         hdu_error = fits.ImageHDU(data=e_r.flux, name=f'ERROR{ext_suffix}')
@@ -935,6 +957,89 @@ def make_masters(path):
         if os.path.isdir(os.path.join(path, folder)):
             make_master(os.path.join(path, folder))
 
+def make_stacked_spectrum(folder, file_type, orig='master', tail_name='stacked'):
+    '''Function to create a stacked spectrum from the master FITS files in a folder.
+
+    Parameters
+    ----------
+    folder : str
+        Path to the folder containing the master FITS files.
+    file_type : str
+        Initial filename of spectra to be plotted (e.g., 'red_science_blue', 'MASTER_REDU').
+    orig : str, optional
+        Origin of the spectra (e.g., 'pipeline', 'reduced', 'master'). Default is 'master'.
+    tail_name : str
+        Tail name for the output stacked FITS file (file_type + tail_name + '.fits').
+
+    Returns
+    ----------
+    None
+    '''
+
+    spectra = []
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            if file.startswith(file_type) and file.endswith('.fits') and not 'stacked' in file.lower():
+                path = os.path.join(root, file)
+                print(f"Loading {file} for stacking.")
+                spec = ob(path, orig=orig, bar_corr=False, to_vac=False, cut_edges=False, silent=False)
+                spectra.append(spec)
+
+    if len(spectra) == 0:
+        print(f"No FITS files of type '{file_type}' found in the folder.")
+        return
+
+    # Print the largest difference in the wavelength arrays of the spectra comparing the first value.
+    wave_diffs = [abs(spec.wave[0] - spectra[0].wave[0]) for spec in spectra]
+    max_diff = max(wave_diffs)
+    print(f"\33[1mLargest difference in the wavelength arrays of the spectra: {max_diff:.5f} Å\033[0m")
+    if max_diff > 0.001:
+        print(f"\33[93mWARNING: LARGE DIFFERENCE IN WAVELENGTH ARRAYS, THE SPECTRA MAY NOT BE PROPERLY ALIGNED\033[0m")
+
+    # Wavelength arrays are averaged
+    waves = np.array([spec.wave for spec in spectra])
+    wave = np.mean(waves, axis=0)
+    # Uncalibrated fluxes and errors are stacked.
+    fluxes = np.array([spec.flux for spec in spectra])
+    stacked_flux = np.nanmean(fluxes, axis=0)
+    fluxes_error = np.array([spec.flux_error for spec in spectra])
+    stacked_flux_error = np.sqrt(np.nansum(fluxes_error**2, axis=0)) / len(spectra)
+    # Flux-calibrated fluxes and errors are also stacked.
+    fluxes_cal = np.array([spec.flux_cal for spec in spectra])
+    stacked_flux_cal = np.nanmean(fluxes_cal, axis=0)
+    fluxes_cal_error = np.array([spec.flux_cal_error for spec in spectra])
+    stacked_flux_cal_error = np.sqrt(np.nansum(fluxes_cal_error**2, axis=0)) / len(spectra)
+
+    new_name = f'{file_type}_{tail_name}.fits'
+
+    # Create a new header only with the keywords that are common to all the spectra.
+    common_keys = set(spectra[0].header.keys())
+    for spec in spectra[1:]:
+        common_keys.intersection_update(set(spec.header.keys()))
+    header = spectra[0].header
+    for key in header:
+        if 'COMMENT' in key or key not in common_keys:
+            del header[key]
+
+    # Create a new FITS file with the stacked spectrum, using the header of the first spectrum
+    hdu = fits.PrimaryHDU(header=header)
+    hdu_wave = fits.ImageHDU(data=wave, name='WAVE')
+    hdu_flux = fits.ImageHDU(data=stacked_flux, name='FLUX')
+    hdu_error = fits.ImageHDU(data=stacked_flux_error, name='ERROR')
+    hdu_fluxcal = fits.ImageHDU(data=stacked_flux_cal, name='FLUXCAL')
+    hdu_fluxcal_error = fits.ImageHDU(data=stacked_flux_cal_error, name='FLUXCAL_ERROR')
+    hdul = fits.HDUList([hdu, hdu_wave, hdu_flux, hdu_error, hdu_fluxcal, hdu_fluxcal_error])
+    hdul.writeto(os.path.join(folder, new_name), overwrite=True)
+
+    # Create an ASCII file with the stacked spectrum
+    np.savetxt(os.path.join(folder, new_name.replace('.fits', '.ascii')),
+                                np.c_[wave, stacked_flux, stacked_flux_error, stacked_flux_cal, stacked_flux_cal_error],
+                                fmt=['%.4f', '%.6e', '%.6e', '%.6e', '%.6e'],
+        header='wave      flux         flux_error   fluxcal      fluxcal_error', comments='')
+
+    print(f"Stacked spectrum saved as {new_name}/ascii.")
+
+
 def recursive_clean_spikes(folder, filename, zs_cut=6, dmin=300, do=1):
     '''Function to recursively clean the spikes of the spectra in a folder.
 
@@ -943,7 +1048,7 @@ def recursive_clean_spikes(folder, filename, zs_cut=6, dmin=300, do=1):
     folder : str
         Path to the folder containing the spectra.
     filename : str
-        Name of the file to be cleaned (e.g., 'red_science_blue.fits').
+        Full name of the file to be cleaned (e.g., 'red_science_blue.fits').
     zs_cut, dmin: ...
         see ob.clean_spikes() method for details.
     do : int, optional
@@ -968,6 +1073,24 @@ def recursive_clean_spikes(folder, filename, zs_cut=6, dmin=300, do=1):
                 spec.export_fits()
 
 def plt_all_spec(file_type, orig='pipeline',tare=False, alpha=1.0, diff=False, path=None):
+    '''Function to plot all the spectra of a given type in a folder.
+
+    Parameters
+    ----------
+    file_type : str
+        Initial filename of spectra to be plotted (e.g., 'red_science_blue', 'MASTER_REDU').
+    orig : str, optional
+        Origin of the spectra (e.g., 'pipeline', 'reduced'). Default is 'pipeline'.
+    tare : bool, optional
+        If True, divides the flux by its median value before plotting. Default is False.
+    alpha : float, optional
+        Transparency of the plots. Default is 1.0.
+    diff : bool, optional
+        If True, plot the difference between the first two spectra found. Default is False.
+    path : str, optional
+        Path to the folder containing the spectra.
+    '''
+
     if path is None:
         path = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
     all_files = []
@@ -981,7 +1104,7 @@ def plt_all_spec(file_type, orig='pipeline',tare=False, alpha=1.0, diff=False, p
                 print(f"Plotting {file} from {date}")
                 if orig == 'pipeline':
                     spec = ob(path, orig=orig, bar_corr=True, to_vac='Morton', cut_edges=True, tare=tare)
-                elif orig == 'reduced':
+                elif orig in ['reduced', 'master']:
                     spec = ob(path, orig=orig, bar_corr=False, to_vac=False, cut_edges=False, tare=tare)
                 spec.plot(alpha=alpha, label=f"{date}")
     if diff and len(all_files) == 2:
