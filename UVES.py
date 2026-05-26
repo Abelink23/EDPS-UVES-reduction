@@ -349,7 +349,7 @@ class ob():
             | ((self.wave > 6440.0) & (self.wave < 6590.0))
             | ((self.wave > 6865.0) & (self.wave < 7400.0))
             | ((self.wave > 7585.0) & (self.wave < 7715.0))
-            | ((self.wave > 7865.0) & (self.wave < 8380.0))
+            | ((self.wave > 7867.5) & (self.wave < 8380.0))
             | ((self.wave > 8915.0) & (self.wave < 9900.0)),
             self.flux, self.flux_clean)
 
@@ -935,20 +935,55 @@ def make_masters(path):
         if os.path.isdir(os.path.join(path, folder)):
             make_master(os.path.join(path, folder))
 
-def plt_all_spec(file_type, tare=False, alpha=1.0, diff=False):
-    path = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
+def recursive_clean_spikes(folder, filename, zs_cut=6, dmin=300, do=1):
+    '''Function to recursively clean the spikes of the spectra in a folder.
+
+    Parameters
+    ----------
+    folder : str
+        Path to the folder containing the spectra.
+    filename : str
+        Name of the file to be cleaned (e.g., 'red_science_blue.fits').
+    zs_cut, dmin: ...
+        see ob.clean_spikes() method for details.
+    do : int, optional
+        Number of times to apply the spike cleaning. Default is 1.
+
+    Returns
+    ----------
+    None
+    '''
+
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            file = file.split('/')[-1]
+            if file == filename:
+                i = 0
+                path = os.path.join(root, file)
+                print(f"Cleaning spikes in {path.split('/')[-1]}")
+                spec = ob(path)
+                while i < do:
+                    spec.clean_spikes(method='zscore', zs_cut=zs_cut, dmin=dmin)
+                    i += 1
+                spec.export_fits()
+
+def plt_all_spec(file_type, orig='pipeline',tare=False, alpha=1.0, diff=False, path=None):
+    if path is None:
+        path = '/Users/adeburgo/Documents/pipelines/EDPS_data/UVES/object'
     all_files = []
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file == file_type:
+            if file.startswith(file_type) and file.endswith('.fits'):
                 path = os.path.join(root, file)
                 all_files.append(path)
                 date = os.path.getctime(path)
                 date = datetime.fromtimestamp(date).strftime('%Y-%m-%d %H:%M:%S')
                 print(f"Plotting {file} from {date}")
-                spec = ob(path, orig='pipeline', bar_corr=True, to_vac='Morton', cut_edges=True, tare=tare)
+                if orig == 'pipeline':
+                    spec = ob(path, orig=orig, bar_corr=True, to_vac='Morton', cut_edges=True, tare=tare)
+                elif orig == 'reduced':
+                    spec = ob(path, orig=orig, bar_corr=False, to_vac=False, cut_edges=False, tare=tare)
                 spec.plot(alpha=alpha, label=f"{date}")
-
     if diff and len(all_files) == 2:
         plt.figure(figsize=(12, 6))
         plt_diff(all_files[0], all_files[1], tare=tare, alpha=alpha)
